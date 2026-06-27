@@ -120,8 +120,8 @@ Note `Cargo.toml` uses `edition = "2024"`.
 
 ## Commands
 
-The Rust toolchain (cargo/rustc 1.96, clippy, rustfmt) is installed at
-`C:\Users\julia\.cargo\bin` but is **not on the PATH** that Claude Code's shells
+The Rust toolchain (cargo/rustc 1.96, clippy, rustfmt) may be installed under
+`%USERPROFILE%\.cargo\bin` but **not on the PATH** that Claude Code's shells
 inherit. Prepend it first in each PowerShell session:
 
 ```powershell

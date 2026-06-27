@@ -27,8 +27,9 @@ calls are Windows-specific. See [CLAUDE.md](CLAUDE.md#module-map).
 
 ## Build & test
 
-The Rust toolchain lives at `C:\Users\julia\.cargo\bin`; prepend it to PATH in
-each shell first (`$env:Path += ";$env:USERPROFILE\.cargo\bin"`).
+If `cargo` is not already on your PATH (e.g. a rustup install under
+`%USERPROFILE%\.cargo\bin`), prepend it in each shell first:
+`$env:Path += ";$env:USERPROFILE\.cargo\bin"`.
 
 ```powershell
 cargo build --release            # release binary -> target/release/tns.exe
