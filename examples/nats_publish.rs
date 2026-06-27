@@ -29,11 +29,24 @@ async fn main() -> anyhow::Result<()> {
         .connect("nats://127.0.0.1:4222")
         .await?;
 
+    // A rich toast with interactive controls (inline reply + action buttons).
+    let rich = r#"<toast>
+  <visual><binding template="ToastGeneric">
+    <text>Alex Chen</text><text>Can you review the deploy PR before standup?</text>
+  </binding></visual>
+  <actions>
+    <input id="reply" type="text" placeHolderContent="Type a reply…"/>
+    <action content="Reply" arguments="action=reply" hint-inputId="reply"/>
+    <action content="Like 👍" arguments="action=like"/>
+  </actions>
+</toast>"#;
+
     let messages: Vec<(String, String)> = match what.as_str() {
         "toast" => vec![(
             "toast".into(),
             toast_xml(&["Alex Chen".into(), "Can you review the deploy PR?".into()]),
         )],
+        "rich" => vec![("rich toast".into(), rich.to_string())],
         "badge" => vec![("badge 5".into(), badge_xml(&Badge::Numeric(5)))],
         _ => vec![
             (

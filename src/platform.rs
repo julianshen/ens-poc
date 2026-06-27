@@ -52,8 +52,10 @@ impl WindowsSink {
 }
 
 impl NotificationSink for WindowsSink {
-    fn show_toast(&mut self, texts: &[String]) -> Result<(), SinkError> {
-        let doc = Self::load_xml(&render::toast_xml(texts))?;
+    fn show_toast(&mut self, xml: &str) -> Result<(), SinkError> {
+        // Pass the toast XML through unchanged so rich templates (buttons,
+        // inputs, images) reach Windows intact.
+        let doc = Self::load_xml(xml)?;
         let toast = ToastNotification::CreateToastNotification(&doc).map_err(sink_err)?;
         let notifier =
             ToastNotificationManager::CreateToastNotifierWithId(&self.aumid).map_err(sink_err)?;

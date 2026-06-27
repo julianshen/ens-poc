@@ -27,7 +27,8 @@ fn reads_real_machine_guid() {
 #[ignore = "shows real toast/badge via Windows.UI.Notifications; run with --ignored"]
 fn shows_toast_and_badge() {
     let mut sink = WindowsSink::new("YourCo.NotificationAgent");
-    sink.show_toast(&["TNS smoke test".into(), "Toast path works".into()])
+    let toast = tns::render::toast_xml(&["TNS smoke test".into(), "Toast path works".into()]);
+    sink.show_toast(&toast)
         .expect("show_toast should reach Windows.UI.Notifications");
     sink.update_badge(&Badge::Numeric(7))
         .expect("numeric badge");

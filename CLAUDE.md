@@ -75,14 +75,21 @@ verification checklist. Payloads mirror the round-trip-tested [render.rs](src/re
   toasts correctly. Delivering from the service to the user session needs a
   user-session helper or a different service account — not yet addressed.
 
-### Beyond the POC
+### Toast passthrough (rich templates)
 
-- **Rich/interactive toasts** (inline reply, action buttons, selection
-  dropdowns, hero/avatar images) are demonstrated in
-  [examples/notify_rich.rs](examples/notify_rich.rs), which calls
-  `Windows.UI.Notifications` directly. The agent itself only renders the 2-text
-  ToastGeneric subset (per spec). The controls render and are clickable, but
-  *handling* a click needs a COM activator — explicitly deferred by the spec.
+Toasts are forwarded to Windows **verbatim**: `dispatch` uses `parse()` only for
+type detection (`<toast>` vs `<badge>`) and malformed-rejection, then hands the
+**original XML** to `NotificationSink::show_toast(xml)`. So rich templates —
+inline reply inputs, action buttons, selection dropdowns, hero/avatar images —
+pass through intact (verified end-to-end over NATS in
+[tests/nats_integration.rs](tests/nats_integration.rs)). `render::toast_xml` is
+now a publisher-side helper (builds a simple toast from text); the agent no
+longer re-renders. Badges still go the typed route.
+
+Controls **render and are clickable**, but *handling* a click (processing a
+typed reply, running "Snooze") needs a COM activator — explicitly deferred by
+the spec. [examples/notify_rich.rs](examples/notify_rich.rs) shows the full
+vocabulary directly; `nats_publish -- rich` drives it through the agent.
 
 ### Not yet built
 

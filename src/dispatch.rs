@@ -14,8 +14,11 @@ use crate::notification::{Badge, Notification, ParseError, parse};
 /// A target that can render notifications. Implemented by the Windows backend
 /// in production and by a mock in tests.
 pub trait NotificationSink {
-    /// Show a toast with the given ordered text lines.
-    fn show_toast(&mut self, texts: &[String]) -> Result<(), SinkError>;
+    /// Show a toast from its full WNS XML. The original payload is passed
+    /// through verbatim so rich templates (action buttons, inputs, images)
+    /// survive — the agent only uses [`parse`] for type detection, not to
+    /// re-render. The `<toast>` root is already validated as well-formed.
+    fn show_toast(&mut self, xml: &str) -> Result<(), SinkError>;
     /// Update (or clear) the badge.
     fn update_badge(&mut self, badge: &Badge) -> Result<(), SinkError>;
 }
@@ -62,8 +65,10 @@ impl std::error::Error for DispatchError {}
 /// Parse a WNS XML payload and route it to `sink`.
 pub fn dispatch(xml: &str, sink: &mut impl NotificationSink) -> Result<Dispatched, DispatchError> {
     match parse(xml).map_err(DispatchError::Parse)? {
-        Notification::Toast { texts } => {
-            sink.show_toast(&texts).map_err(DispatchError::Sink)?;
+        // Toasts pass through verbatim (controls preserved); parse only
+        // validated well-formedness and the root element.
+        Notification::Toast { .. } => {
+            sink.show_toast(xml).map_err(DispatchError::Sink)?;
             Ok(Dispatched::Toast)
         }
         Notification::Badge(badge) => {
@@ -82,17 +87,17 @@ mod tests {
     /// to simulate a backend failure.
     #[derive(Default)]
     struct RecordingSink {
-        toasts: Vec<Vec<String>>,
+        toasts: Vec<String>,
         badges: Vec<Badge>,
         fail: bool,
     }
 
     impl NotificationSink for RecordingSink {
-        fn show_toast(&mut self, texts: &[String]) -> Result<(), SinkError> {
+        fn show_toast(&mut self, xml: &str) -> Result<(), SinkError> {
             if self.fail {
                 return Err(SinkError("toast backend down".into()));
             }
-            self.toasts.push(texts.to_vec());
+            self.toasts.push(xml.to_string());
             Ok(())
         }
 
@@ -112,11 +117,22 @@ mod tests {
             <text>Hi</text><text>Body</text></binding></visual></toast>"#;
         let out = dispatch(xml, &mut sink).unwrap();
         assert_eq!(out, Dispatched::Toast);
-        assert_eq!(
-            sink.toasts,
-            vec![vec!["Hi".to_string(), "Body".to_string()]]
-        );
+        // The original XML is passed through verbatim (not re-rendered).
+        assert_eq!(sink.toasts, vec![xml.to_string()]);
         assert!(sink.badges.is_empty());
+    }
+
+    #[test]
+    fn rich_toast_controls_pass_through_to_sink() {
+        let mut sink = RecordingSink::default();
+        let xml = r#"<toast><visual><binding template="ToastGeneric"><text>Alex</text></binding></visual>
+            <actions><input id="reply" type="text"/><action content="Reply" arguments="reply"/></actions></toast>"#;
+        dispatch(xml, &mut sink).unwrap();
+        // Action buttons and inputs survive — the agent does not strip them.
+        assert_eq!(sink.toasts.len(), 1);
+        assert!(sink.toasts[0].contains("<actions>"));
+        assert!(sink.toasts[0].contains("hint") || sink.toasts[0].contains("<input"));
+        assert!(sink.toasts[0].contains("<action "));
     }
 
     #[test]

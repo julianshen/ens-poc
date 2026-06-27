@@ -21,13 +21,14 @@ use tns::notification::{Badge, Glyph};
 
 #[derive(Default)]
 struct RecordingSink {
-    toasts: Vec<Vec<String>>,
+    /// Raw toast XML, exactly as it arrived (passed through verbatim).
+    toasts: Vec<String>,
     badges: Vec<Badge>,
 }
 
 impl NotificationSink for RecordingSink {
-    fn show_toast(&mut self, texts: &[String]) -> Result<(), SinkError> {
-        self.toasts.push(texts.to_vec());
+    fn show_toast(&mut self, xml: &str) -> Result<(), SinkError> {
+        self.toasts.push(xml.to_string());
         Ok(())
     }
     fn update_badge(&mut self, badge: &Badge) -> Result<(), SinkError> {
@@ -94,9 +95,49 @@ async fn toast_published_over_nats_reaches_dispatch() {
     let kind = next_dispatched(&mut sub, &mut sink).await;
 
     assert_eq!(kind, Dispatched::Toast);
-    assert_eq!(
-        sink.toasts,
-        vec![vec!["Alex Chen".to_string(), "Review the PR?".to_string()]]
+    assert_eq!(sink.toasts.len(), 1);
+    assert!(sink.toasts[0].contains("<text>Alex Chen</text>"));
+    assert!(sink.toasts[0].contains("<text>Review the PR?</text>"));
+}
+
+/// A rich toast with interactive controls (inline reply input + action
+/// buttons) published over NATS must reach the sink with the controls intact —
+/// the agent passes the toast XML through verbatim rather than re-rendering it.
+#[tokio::test]
+#[ignore = "requires a running NATS server (agent/changeme @ 127.0.0.1:4222)"]
+async fn rich_toast_controls_survive_the_round_trip() {
+    let client = connect().await;
+    let subject = "notifications.device.integration-rich";
+    let mut sub = client.subscribe(subject).await.expect("subscribe");
+
+    let rich = r#"<toast>
+  <visual><binding template="ToastGeneric">
+    <text>Alex Chen</text><text>Review the deploy PR?</text>
+  </binding></visual>
+  <actions>
+    <input id="reply" type="text" placeHolderContent="Type a reply…"/>
+    <action content="Reply" arguments="action=reply" hint-inputId="reply"/>
+    <action content="Like" arguments="action=like"/>
+  </actions>
+</toast>"#;
+    client
+        .publish(subject, Bytes::copy_from_slice(rich.as_bytes()))
+        .await
+        .expect("publish");
+    client.flush().await.expect("flush");
+
+    let mut sink = RecordingSink::default();
+    let kind = next_dispatched(&mut sub, &mut sink).await;
+
+    assert_eq!(kind, Dispatched::Toast);
+    let got = &sink.toasts[0];
+    // The whole template survived: text, the input, and both action buttons.
+    assert!(got.contains("<input id=\"reply\""), "input survived: {got}");
+    assert!(got.contains("content=\"Reply\""), "reply button survived");
+    assert!(got.contains("content=\"Like\""), "like button survived");
+    assert!(
+        got.contains("hint-inputId=\"reply\""),
+        "inline-reply wiring survived"
     );
 }
 
@@ -160,13 +201,9 @@ async fn mixed_stream_delivers_valid_and_discards_invalid_in_order() {
     );
 
     // Valid messages arrived and were routed in publish order.
-    assert_eq!(
-        sink.toasts,
-        vec![vec![
-            "Quarterly report".to_string(),
-            "Numbers are in".to_string()
-        ]]
-    );
+    assert_eq!(sink.toasts.len(), 1);
+    assert!(sink.toasts[0].contains("<text>Quarterly report</text>"));
+    assert!(sink.toasts[0].contains("<text>Numbers are in</text>"));
     assert_eq!(
         sink.badges,
         vec![

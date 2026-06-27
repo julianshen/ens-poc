@@ -15,6 +15,7 @@ fn main() {
     use tns::dispatch::NotificationSink;
     use tns::notification::Badge;
     use tns::platform::WindowsSink;
+    use tns::render::toast_xml;
 
     let aumid = std::env::args()
         .nth(1)
@@ -22,18 +23,18 @@ fn main() {
     let mut sink = WindowsSink::new(&aumid);
 
     // Teams-style: sender name as the title, message as the body.
-    sink.show_toast(&[
+    sink.show_toast(&toast_xml(&[
         "Alex Chen".into(),
         "Can you review the deploy PR before standup?".into(),
-    ])
+    ]))
     .expect("show Teams-style toast");
     sleep(Duration::from_millis(1200));
 
     // Slack-style: channel/sender as the title, message as the body.
-    sink.show_toast(&[
+    sink.show_toast(&toast_xml(&[
         "#engineering — Maria".into(),
         "Prod deploy is green and rolling out. Nice work all!".into(),
-    ])
+    ]))
     .expect("show Slack-style toast");
     sleep(Duration::from_millis(1200));
 
