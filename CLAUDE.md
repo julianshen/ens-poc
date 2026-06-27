@@ -75,6 +75,15 @@ verification checklist. Payloads mirror the round-trip-tested [render.rs](src/re
   toasts correctly. Delivering from the service to the user session needs a
   user-session helper or a different service account — not yet addressed.
 
+### Beyond the POC
+
+- **Rich/interactive toasts** (inline reply, action buttons, selection
+  dropdowns, hero/avatar images) are demonstrated in
+  [examples/notify_rich.rs](examples/notify_rich.rs), which calls
+  `Windows.UI.Notifications` directly. The agent itself only renders the 2-text
+  ToastGeneric subset (per spec). The controls render and are clickable, but
+  *handling* a click needs a COM activator — explicitly deferred by the spec.
+
 ### Not yet built
 
 - `installer/agent.ico` is a generated placeholder (blue "N"); swap in real
