@@ -155,6 +155,16 @@ only *displays* once the AUMID is registered (`install.ps1`). Also useful: run
 the binary against an unreachable NATS to confirm boot + device-id + backoff:
 `cargo run -- <config-with-dead-nats>`.
 
+For a *visible* demo, register an AUMID (HKCU works without admin) and run the
+chat-style ([examples/notify_demo.rs](examples/notify_demo.rs)) demo:
+
+```powershell
+$k = "HKCU:\Software\Classes\AppUserModelId\TNS.SmokeDemo"
+New-Item -Path $k -Force | Out-Null
+New-ItemProperty -Path $k -Name DisplayName -Value "TNS Notifications" -Force | Out-Null
+cargo run --example notify_demo -- TNS.SmokeDemo
+```
+
 ### Coverage (target: >90%)
 
 Uses `cargo-llvm-cov` (already installed, with the `llvm-tools-preview`
