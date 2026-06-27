@@ -61,6 +61,20 @@ device subject (auto-reads the local MachineGuid). [tools/README.md](tools/READM
 documents it alongside zero-dependency `nats pub` CLI commands and the §10
 verification checklist. Payloads mirror the round-trip-tested [render.rs](src/render.rs).
 
+### Toast delivery requirements (learned from smoke testing)
+
+- **A Start Menu shortcut carrying the AUMID is mandatory.** An unpackaged Win32
+  app cannot raise toasts on the registry `AppUserModelId` key alone —
+  `Show()` returns `Ok` but the toast is silently dropped. `install.ps1` creates
+  the shortcut via [tools/New-AumidShortcut.ps1](tools/New-AumidShortcut.ps1)
+  (sets `System.AppUserModel.ID` on the `.lnk`). Verified: the toast only
+  reached the notification center after the shortcut existed.
+- **Local System / session 0 caveat (open):** a service running as Local System
+  lives in session 0 and **cannot display interactive toasts** to the logged-in
+  user. The console mode (`tns <config>`, running in the user session) shows
+  toasts correctly. Delivering from the service to the user session needs a
+  user-session helper or a different service account — not yet addressed.
+
 ### Not yet built
 
 - `installer/agent.ico` is a generated placeholder (blue "N"); swap in real

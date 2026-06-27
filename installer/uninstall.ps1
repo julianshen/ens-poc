@@ -12,6 +12,7 @@ $ErrorActionPreference = 'Stop'
 
 $ServiceName = 'YourCoNotificationAgent'
 $Aumid       = 'YourCo.NotificationAgent'
+$DisplayName = 'Acme Notification Agent'
 
 if (Get-Service -Name $ServiceName -ErrorAction SilentlyContinue) {
     Write-Host "Stopping and deleting $ServiceName ..."
@@ -22,6 +23,9 @@ if (Get-Service -Name $ServiceName -ErrorAction SilentlyContinue) {
 }
 
 Remove-Item -Path "HKLM:\SOFTWARE\Classes\AppUserModelId\$Aumid" -Recurse -Force -ErrorAction SilentlyContinue
+
+$StartMenuLnk = Join-Path ([Environment]::GetFolderPath('CommonPrograms')) "$DisplayName.lnk"
+Remove-Item -Path $StartMenuLnk -Force -ErrorAction SilentlyContinue
 
 if ([System.Diagnostics.EventLog]::SourceExists($ServiceName)) {
     Remove-EventLog -Source $ServiceName

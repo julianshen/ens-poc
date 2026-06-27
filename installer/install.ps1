@@ -50,6 +50,19 @@ New-Item -Path $AumidKey -Force | Out-Null
 New-ItemProperty -Path $AumidKey -Name 'DisplayName' -Value $DisplayName -PropertyType String -Force | Out-Null
 New-ItemProperty -Path $AumidKey -Name 'IconUri' -Value (Join-Path $InstallDir 'agent.ico') -PropertyType String -Force | Out-Null
 
+# 2b. Create a Start Menu shortcut carrying the AUMID. REQUIRED: an unpackaged
+#     Win32 app cannot raise toasts on the registry key alone — without this
+#     shortcut, ToastNotification.Show() succeeds but the toast is dropped.
+#     (Verified by smoke test: the toast only reached the notification center
+#     once this shortcut existed.)
+$ShortcutHelper = Join-Path $PSScriptRoot 'New-AumidShortcut.ps1'
+if (-not (Test-Path $ShortcutHelper)) {
+    $ShortcutHelper = Join-Path $PSScriptRoot '..\tools\New-AumidShortcut.ps1'
+}
+$StartMenuLnk = Join-Path ([Environment]::GetFolderPath('CommonPrograms')) "$DisplayName.lnk"
+& $ShortcutHelper -ShortcutPath $StartMenuLnk -TargetPath $ExePath -Aumid $Aumid `
+                  -IconPath (Join-Path $InstallDir 'agent.ico')
+
 # 3. Register the Event Log source so entries are attributed (spec section 9 #7).
 #    The source name matches EVENT_SOURCE in src/eventlog.rs.
 if (-not [System.Diagnostics.EventLog]::SourceExists($ServiceName)) {
