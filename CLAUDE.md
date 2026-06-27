@@ -140,6 +140,21 @@ cargo clippy --all-targets -- -D warnings   # lint (treat warnings as errors)
 cargo fmt                        # format
 ```
 
+### Smoke tests (real OS, manual)
+
+[tests/windows_smoke.rs](tests/windows_smoke.rs) holds `#[ignore]`d tests that
+touch real Windows APIs (registry read + on-screen notifications), so they stay
+out of the normal suite. Run on a Windows box:
+
+```bash
+cargo test --test windows_smoke -- --ignored --nocapture
+```
+
+`show_toast` returning `Ok` proves the COM path is wired correctly, but a toast
+only *displays* once the AUMID is registered (`install.ps1`). Also useful: run
+the binary against an unreachable NATS to confirm boot + device-id + backoff:
+`cargo run -- <config-with-dead-nats>`.
+
 ### Coverage (target: >90%)
 
 Uses `cargo-llvm-cov` (already installed, with the `llvm-tools-preview`
