@@ -21,6 +21,22 @@ cargo run -- .\installer\agent.toml      # or the installed service
 
 Point `agent.toml`'s `nats_url` at your test server before starting.
 
+For toasts to actually display, the AUMID must be registered **with a Start Menu
+shortcut** (the registry key alone isn't enough — Windows silently drops the
+toast otherwise). `installer/install.ps1` does this; for local testing use
+`New-AumidShortcut.ps1` (see below).
+
+## Other tools here
+
+- `New-AumidShortcut.ps1` — create a Start Menu shortcut carrying an AUMID
+  (`System.AppUserModel.ID`), required for an unpackaged app to raise toasts.
+- `demo-assets/` — avatar/hero images used by `examples/notify_rich.rs`.
+
+To see notifications without a NATS server, run the example demos directly:
+`cargo run --example notify_demo` (chat-style) or `cargo run --example
+notify_rich` (buttons, inline reply, dropdown). See the repo
+[README](../README.md#see-the-notifications-no-nats-needed).
+
 ## Option A — Python script (`publish.py`)
 
 ```bash
