@@ -1,0 +1,8 @@
+# TNS notification agent configuration (spec section 7).
+# Copy to C:\Program Files\YourCo\agent.toml and fill in real values.
+# Note: device-id is NOT configured here -- it is read live from the registry.
+
+nats_url  = "nats://nats.internal.yourco.com:4222"
+nats_user = "agent"
+nats_pass = "changeme"
+aumid     = "YourCo.NotificationAgent"
