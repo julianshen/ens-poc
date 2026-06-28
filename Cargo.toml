@@ -11,12 +11,29 @@ path = "src/lib.rs"
 name = "tns"
 path = "src/main.rs"
 
+[profile.release]
+opt-level = "z"      # optimize for size (agent is idle I/O, not CPU-bound)
+lto = true           # cross-crate inlining + dead-code elimination
+codegen-units = 1    # better optimization at the cost of compile time
+panic = "abort"      # drop unwinding tables; SCM restarts the service on crash
+strip = true         # remove symbols
+
 [dependencies]
 quick-xml = "0.36"
 serde = { version = "1", features = ["derive"] }
 toml = "0.8"
+# NOTE: async-nats 0.35 hard-requires a rustls crypto provider (`ring`) even for
+# plaintext connections, so the TLS stack can't be dropped without patching the
+# crate. Left at defaults.
 async-nats = "0.35"
-tokio = { version = "1", features = ["full"] }
+tokio = { version = "1", features = [
+    "rt-multi-thread",
+    "macros",
+    "net",
+    "time",
+    "signal",
+    "sync",
+] }
 futures = "0.3"
 tracing = "0.1"
 tracing-subscriber = "0.3"
