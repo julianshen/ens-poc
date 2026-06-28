@@ -26,7 +26,7 @@ is excluded from coverage (see below) and verified manually per spec §10.
 | [notification.rs](src/notification.rs) | pure | Parse WNS XML → `Notification`, detect type by root element |
 | [render.rs](src/render.rs) | pure | Build WNS XML from a `Notification` (inverse of `notification`; round-trip tested) |
 | [dispatch.rs](src/dispatch.rs) | pure | `NotificationSink` trait + route a parsed payload to it; discard bad input |
-| [backoff.rs](src/backoff.rs) | pure | Initial-connect and reconnect backoff policies (§7) |
+| [backoff.rs](src/backoff.rs) | pure | `InitialConnectBackoff` (5s×12) + `reconnect_delay()` (§7) |
 | [config.rs](src/config.rs) | pure | Load `agent.toml` (`device-id` is **not** here) |
 | [subject.rs](src/subject.rs) | pure | `DeviceId` GUID validation + NATS subject; `DeviceIdSource` trait |
 | [aumid.rs](src/aumid.rs) | pure | AUMID registry key/value data; `AumidRegistrar` trait |
@@ -223,9 +223,15 @@ gate automatically; when adding OS glue, extend the ignore regex.
 - Derive test cases directly from the spec's **Success Criteria** (§10) and
   **Message Format** (§6): badge clear on `value="0"`, glyph rendering, invalid
   XML discarded without crashing, reconnect after NATS restart, etc.
-- The **reconnection policy is exact** and should be unit-tested as pure logic:
-  initial connect retries every 5s up to 12 attempts; after a disconnect,
-  exponential backoff 2s → 4s → 8s → 16s → 30s (capped). No jitter at POC scale.
+- The **reconnection policy is exact** and is unit-tested as pure logic in
+  `backoff.rs`: the **initial** connect retries every 5s up to 12 attempts then
+  gives up (`connect_initial` drives this loop). **After** an established
+  connection drops, `async-nats` reconnects and re-subscribes itself,
+  indefinitely — the agent supplies the spec backoff (2→4→8→16→30s) as its
+  `reconnect_delay_callback` rather than looping manually. (Confirmed by a live
+  broker restart: the manual approach with `max_reconnects(Some(0))` did NOT
+  disable async-nats's internal reconnection, so that code was dead.) No jitter
+  at POC scale.
 - Config is read from `agent.toml` (`nats_url`, `nats_user`, `nats_pass`,
   `aumid`); `device-id` is **not** in config — it is always read live from the
   registry.

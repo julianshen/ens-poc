@@ -81,8 +81,12 @@ New-Service -Name $ServiceName `
             -BinaryPathName "`"$ExePath`" --service" `
             -StartupType Automatic | Out-Null
 
-# 5. Configure restart-on-failure recovery (spec section 7).
+# 5. Configure restart-on-failure recovery (spec section 7). The failureflag
+#    makes the SCM run recovery actions when the service stops with a non-zero
+#    exit code too (not only on a hard crash) — the agent reports exit code 1
+#    when run_agent fails (see service_runtime.rs).
 & sc.exe failure $ServiceName reset= $ResetSecs actions= restart/$RestartMs | Out-Null
+& sc.exe failureflag $ServiceName 1 | Out-Null
 
 # 6. Start it.
 Start-Service -Name $ServiceName

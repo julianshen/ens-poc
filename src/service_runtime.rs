@@ -39,12 +39,12 @@ fn service_main(_arguments: Vec<OsString>) {
     }
 }
 
-fn status(state: ServiceState, accepts: ServiceControlAccept) -> ServiceStatus {
+fn status(state: ServiceState, accepts: ServiceControlAccept, exit_code: u32) -> ServiceStatus {
     ServiceStatus {
         service_type: SERVICE_TYPE,
         current_state: state,
         controls_accepted: accepts,
-        exit_code: ServiceExitCode::Win32(0),
+        exit_code: ServiceExitCode::Win32(exit_code),
         checkpoint: 0,
         wait_hint: Duration::default(),
         process_id: None,
@@ -67,7 +67,11 @@ fn run_service() -> anyhow::Result<()> {
     };
 
     let status_handle = service_control_handler::register(AGENT_SERVICE.name, event_handler)?;
-    status_handle.set_service_status(status(ServiceState::Running, ServiceControlAccept::STOP))?;
+    status_handle.set_service_status(status(
+        ServiceState::Running,
+        ServiceControlAccept::STOP,
+        0,
+    ))?;
 
     let runtime = app::runtime()?;
     let result = runtime.block_on(app::run_agent(
@@ -77,7 +81,14 @@ fn run_service() -> anyhow::Result<()> {
         },
     ));
 
-    status_handle
-        .set_service_status(status(ServiceState::Stopped, ServiceControlAccept::empty()))?;
+    // Report a non-zero exit code on failure so the SCM's restart-on-failure
+    // recovery fires (install.ps1 sets the failure flag that enables recovery
+    // for error stops, not just hard crashes).
+    let exit_code = if result.is_ok() { 0 } else { 1 };
+    status_handle.set_service_status(status(
+        ServiceState::Stopped,
+        ServiceControlAccept::empty(),
+        exit_code,
+    ))?;
     result
 }

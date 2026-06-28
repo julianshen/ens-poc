@@ -10,18 +10,21 @@
 use anyhow::{Context, anyhow};
 use futures::StreamExt;
 
-use crate::backoff::{InitialConnectBackoff, ReconnectBackoff};
+use crate::backoff::{InitialConnectBackoff, reconnect_delay};
 use crate::config::Config;
 use crate::dispatch::{NotificationSink, dispatch};
 use crate::subject::DeviceId;
 
-/// Open a single NATS connection with reconnection disabled, so a dropped
-/// connection surfaces as the end of the subscription stream and we drive the
-/// reconnect backoff ourselves.
+/// Open a single NATS connection. Once established, `async-nats` reconnects and
+/// re-subscribes automatically and indefinitely on a dropped connection; we
+/// supply the spec §7 exponential backoff via its `reconnect_delay_callback`.
+/// `retry_on_initial_connect` is left off so the *first* connect fails fast and
+/// `connect_initial` can drive the bounded 5s×12 retry itself.
 async fn connect_once(config: &Config) -> Result<async_nats::Client, async_nats::ConnectError> {
     async_nats::ConnectOptions::new()
         .user_and_password(config.nats_user.clone(), config.nats_pass.clone())
-        .max_reconnects(Some(0))
+        .max_reconnects(None) // reconnect forever (spec §7)
+        .reconnect_delay_callback(|attempts| reconnect_delay(attempts as u32))
         .connect(config.nats_url.as_str())
         .await
 }
@@ -48,50 +51,36 @@ async fn connect_initial(config: &Config) -> anyhow::Result<async_nats::Client> 
     }
 }
 
-/// Reconnect after a disconnect: exponential backoff, retrying forever (spec §7).
-async fn reconnect(config: &Config) -> async_nats::Client {
-    let mut backoff = ReconnectBackoff::new();
-    loop {
-        let delay = backoff.next_delay();
-        tracing::warn!(?delay, "connection lost; reconnecting after delay");
-        tokio::time::sleep(delay).await;
-        match connect_once(config).await {
-            Ok(client) => return client,
-            Err(e) => tracing::warn!(error = %e, "reconnect attempt failed"),
-        }
-    }
-}
-
 /// Run the agent: connect, subscribe to the device subject, and dispatch every
-/// message to `sink`, reconnecting automatically on disconnect. Returns only if
-/// the bounded initial connect gives up.
+/// message to `sink`. `async-nats` transparently re-establishes the connection
+/// and subscription on transient disconnects (spec §7/§10), so this loop only
+/// ends if the client is closed unrecoverably — which is reported as an error
+/// so the supervisor (SCM) can restart the process.
 pub async fn run(
     config: &Config,
     device_id: &DeviceId,
     sink: &mut impl NotificationSink,
 ) -> anyhow::Result<()> {
     let subject = device_id.subject();
-    let mut client = connect_initial(config)
+    let client = connect_initial(config)
         .await
         .context("initial connection failed")?;
 
-    loop {
-        let mut sub = client
-            .subscribe(subject.clone())
-            .await
-            .map_err(|e| anyhow!("subscribe to {subject} failed: {e}"))?;
-        tracing::info!(%subject, "subscribed; awaiting notifications");
+    let mut sub = client
+        .subscribe(subject.clone())
+        .await
+        .map_err(|e| anyhow!("subscribe to {subject} failed: {e}"))?;
+    tracing::info!(%subject, "subscribed; awaiting notifications");
 
-        while let Some(msg) = sub.next().await {
-            let payload = String::from_utf8_lossy(msg.payload.as_ref());
-            match dispatch(&payload, sink) {
-                Ok(kind) => tracing::info!(?kind, bytes = msg.payload.len(), "delivered"),
-                Err(err) => tracing::warn!(%err, "dropping message"),
-            }
+    while let Some(msg) = sub.next().await {
+        let payload = String::from_utf8_lossy(msg.payload.as_ref());
+        match dispatch(&payload, sink) {
+            Ok(kind) => tracing::info!(?kind, bytes = msg.payload.len(), "delivered"),
+            Err(err) => tracing::warn!(%err, "dropping message"),
         }
-
-        // Stream ended => the connection dropped. Reconnect and re-subscribe.
-        client = reconnect(config).await;
-        tracing::info!("reconnected");
     }
+
+    Err(anyhow!(
+        "NATS subscription closed; connection unrecoverable"
+    ))
 }

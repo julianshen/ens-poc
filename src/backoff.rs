@@ -43,42 +43,21 @@ impl Default for InitialConnectBackoff {
     }
 }
 
-/// Capped exponential backoff used after an established connection drops.
-#[derive(Debug, Clone)]
-pub struct ReconnectBackoff {
-    step: u32,
-}
+/// Upper bound on any single reconnect delay (spec §7).
+pub const RECONNECT_CAP: Duration = Duration::from_secs(30);
 
-impl ReconnectBackoff {
-    /// Upper bound on any single backoff delay.
-    pub const CAP: Duration = Duration::from_secs(30);
-
-    pub fn new() -> Self {
-        Self { step: 0 }
-    }
-
-    /// The delay to wait before the next reconnect attempt. Grows 2s → 4s → 8s
-    /// → 16s → 30s and then stays at the cap. Never terminates.
-    pub fn next_delay(&mut self) -> Duration {
-        // 2^(step+1) seconds, saturating at the cap. `step` saturates too so a
-        // long-running disconnect can never overflow the shift.
-        let exponent = self.step.saturating_add(1).min(16);
-        let secs = 1u64 << exponent;
-        self.step = self.step.saturating_add(1);
-        Self::CAP.min(Duration::from_secs(secs))
-    }
-
-    /// Reset the sequence after a successful reconnect, so a later disconnect
-    /// starts again from 2s.
-    pub fn reset(&mut self) {
-        self.step = 0;
-    }
-}
-
-impl Default for ReconnectBackoff {
-    fn default() -> Self {
-        Self::new()
-    }
+/// Capped exponential backoff for reconnecting after an established connection
+/// drops: `2^attempt` seconds, capped at 30s. With `attempt` 1-based this gives
+/// 2s, 4s, 8s, 16s, then 30s thereafter (spec §7).
+///
+/// This is a pure function rather than a stateful iterator because the actual
+/// retry loop lives inside `async-nats` — the agent installs this as its
+/// `reconnect_delay_callback`, which receives the attempt count. Reconnection
+/// continues indefinitely (the cap never terminates).
+pub fn reconnect_delay(attempt: u32) -> Duration {
+    // 2^attempt seconds, saturating so a long outage can never overflow.
+    let secs = 1u64.checked_shl(attempt).unwrap_or(u64::MAX);
+    RECONNECT_CAP.min(Duration::from_secs(secs))
 }
 
 #[cfg(test)]
@@ -115,9 +94,17 @@ mod tests {
     }
 
     #[test]
-    fn reconnect_follows_exponential_then_caps() {
-        let mut b = ReconnectBackoff::new();
-        let seq: Vec<_> = (0..7).map(|_| b.next_delay()).collect();
+    fn initial_connect_default_matches_new() {
+        assert_eq!(
+            InitialConnectBackoff::default().next_delay(),
+            InitialConnectBackoff::new().next_delay()
+        );
+    }
+
+    #[test]
+    fn reconnect_delay_follows_exponential_then_caps() {
+        // async-nats calls the callback with a 1-based attempt count.
+        let seq: Vec<_> = (1..=7).map(reconnect_delay).collect();
         assert_eq!(
             seq,
             vec![
@@ -133,33 +120,15 @@ mod tests {
     }
 
     #[test]
-    fn reconnect_never_exceeds_cap() {
-        let mut b = ReconnectBackoff::new();
-        for _ in 0..100 {
-            assert!(b.next_delay() <= ReconnectBackoff::CAP);
+    fn reconnect_delay_never_exceeds_cap() {
+        for attempt in 0..100 {
+            assert!(reconnect_delay(attempt) <= RECONNECT_CAP);
         }
     }
 
     #[test]
-    fn defaults_match_new() {
-        assert_eq!(
-            InitialConnectBackoff::default().next_delay(),
-            InitialConnectBackoff::new().next_delay()
-        );
-        assert_eq!(
-            ReconnectBackoff::default().next_delay(),
-            ReconnectBackoff::new().next_delay()
-        );
-    }
-
-    #[test]
-    fn reconnect_reset_restarts_from_two_seconds() {
-        let mut b = ReconnectBackoff::new();
-        let _ = b.next_delay(); // 2
-        let _ = b.next_delay(); // 4
-        let _ = b.next_delay(); // 8
-        b.reset();
-        assert_eq!(b.next_delay(), secs(2));
-        assert_eq!(b.next_delay(), secs(4));
+    fn reconnect_delay_saturates_on_huge_attempt() {
+        // Must not panic/overflow on a shift past the integer width.
+        assert_eq!(reconnect_delay(1000), RECONNECT_CAP);
     }
 }
