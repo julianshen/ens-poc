@@ -1,0 +1,12 @@
+<!-- Download / long-running task: a progress bar with value, an overridden
+     value string, and a status line. -->
+<toast>
+  <visual>
+    <binding template="ToastGeneric">
+      <text>Downloading update</text>
+      <text>tns-agent v0.2.0</text>
+      <progress title="Update" value="0.6" valueStringOverride="60% — 18 MB / 30 MB" status="Downloading…"/>
+      <text placement="attribution">Updater</text>
+    </binding>
+  </visual>
+</toast>

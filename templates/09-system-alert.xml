@@ -1,0 +1,15 @@
+<!-- System alert: urgent scenario, a Critical button that opens a Windows
+     Settings page via the ms-settings: protocol, and a system Dismiss. -->
+<toast scenario="urgent" useButtonStyle="true">
+  <visual>
+    <binding template="ToastGeneric">
+      <text>Disk space critically low</text>
+      <text>C: has 2% free. Free up space to avoid data loss.</text>
+      <text placement="attribution">System Monitor</text>
+    </binding>
+  </visual>
+  <actions>
+    <action content="Open Storage settings" activationType="protocol" arguments="ms-settings:storagesense" hint-buttonStyle="Critical"/>
+    <action content="Dismiss" activationType="system" arguments="dismiss"/>
+  </actions>
+</toast>

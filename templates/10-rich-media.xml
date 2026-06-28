@@ -1,0 +1,24 @@
+<!-- Rich media kitchen-sink: protocol launch, app logo + hero + inline image,
+     a selection dropdown, a colored protocol button, a system snooze, and a
+     right-click context-menu action. -->
+<toast launch="https://github.com/julianshen/ens-poc" activationType="protocol" useButtonStyle="true">
+  <visual>
+    <binding template="ToastGeneric">
+      <image placement="appLogoOverride" hint-crop="circle" src="https://picsum.photos/id/237/96/96"/>
+      <text>Release candidate ready</text>
+      <text>ens-poc v2.3.0-rc1 — review the highlights below.</text>
+      <image placement="hero" src="https://picsum.photos/id/1067/360/180"/>
+      <image src="https://picsum.photos/id/1080/360/202"/>
+      <text placement="attribution">via TNS Notifications</text>
+    </binding>
+  </visual>
+  <actions>
+    <input id="decision" type="selection" defaultInput="ship">
+      <selection id="ship" content="Ship it"/>
+      <selection id="hold" content="Hold"/>
+    </input>
+    <action content="Open PR" activationType="protocol" arguments="https://github.com/julianshen/ens-poc" hint-buttonStyle="Success"/>
+    <action content="Snooze" activationType="system" arguments="snooze"/>
+    <action content="Mute thread" placement="contextMenu" activationType="background" arguments="action=mute"/>
+  </actions>
+</toast>

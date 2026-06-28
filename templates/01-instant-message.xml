@@ -1,0 +1,17 @@
+<!-- Instant message / team chat: circular avatar, attribution, inline reply
+     text box, and quick-action buttons (background activation). -->
+<toast launch="action=openConversation&amp;id=42" activationType="foreground">
+  <visual>
+    <binding template="ToastGeneric">
+      <image placement="appLogoOverride" hint-crop="circle" src="https://picsum.photos/id/64/96/96"/>
+      <text>Alex Chen</text>
+      <text>Can you review the deploy PR before standup?</text>
+      <text placement="attribution">Team Chat</text>
+    </binding>
+  </visual>
+  <actions>
+    <input id="reply" type="text" placeHolderContent="Type a reply…"/>
+    <action content="Reply" activationType="background" arguments="action=reply&amp;id=42" hint-inputId="reply"/>
+    <action content="Like" activationType="background" arguments="action=like&amp;id=42"/>
+  </actions>
+</toast>

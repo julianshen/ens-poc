@@ -19,8 +19,9 @@ See [ENS-POC-Spec_1.md](ENS-POC-Spec_1.md) for the full specification and
 | `src/` | Agent: a pure, unit-tested core + a thin Windows/NATS shell |
 | `installer/` | `install.ps1` / `uninstall.ps1`, `agent.toml` sample, `agent.ico` |
 | `tools/` | `publish.py` test publisher, `New-AumidShortcut.ps1`, demo assets ([tools/README.md](tools/README.md)) |
-| `examples/` | Runnable notification demos (`notify_demo`, `notify_rich`) |
-| `tests/` | `windows_smoke.rs` — `--ignored` smoke tests over the real OS APIs |
+| `templates/` | Kitchen-sink WNS XML template library (IM, CI/CD, news, approval, …) + [docs](templates/README.md) |
+| `examples/` | Notification demos + NATS publishers (`notify_demo`, `nats_publish`, `nats_gallery`, `send_templates`) |
+| `tests/` | `windows_smoke.rs` + `nats_integration.rs` — `--ignored` tests over the real OS / a live broker |
 
 The code is split so all logic (XML parse/render, type detection, badge
 validation, reconnect backoff, config, subject building, service/AUMID data)

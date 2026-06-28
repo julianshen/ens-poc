@@ -1,0 +1,3 @@
+<!-- Glyph badge. One of: none, alert, activity, alarm, available, away, busy,
+     newMessage, paused, playing, unavailable, error, attention. -->
+<badge value="alert"/>

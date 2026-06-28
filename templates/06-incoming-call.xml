@@ -1,0 +1,16 @@
+<!-- Incoming call: incomingCall scenario (ringtone loop + special layout),
+     caller avatar, Accept (protocol) / Decline (colored) buttons. -->
+<toast scenario="incomingCall" useButtonStyle="true">
+  <visual>
+    <binding template="ToastGeneric">
+      <image placement="appLogoOverride" hint-crop="circle" src="https://picsum.photos/id/91/96/96"/>
+      <text>Maria Lopez</text>
+      <text>Incoming video call…</text>
+      <text placement="attribution">Team Meet</text>
+    </binding>
+  </visual>
+  <actions>
+    <action content="Accept" activationType="protocol" arguments="https://meet.example.com/accept/abc" hint-buttonStyle="Success"/>
+    <action content="Decline" activationType="background" arguments="action=decline" hint-buttonStyle="Critical"/>
+  </actions>
+</toast>

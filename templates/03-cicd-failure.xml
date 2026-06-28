@@ -1,0 +1,17 @@
+<!-- CI/CD failure: urgent scenario, hero image, and colored buttons
+     (Success/Critical) — requires useButtonStyle on the toast. -->
+<toast launch="https://ci.example.com/build/129" activationType="protocol" scenario="urgent" useButtonStyle="true">
+  <visual>
+    <binding template="ToastGeneric">
+      <text>Build #129 failed ❌</text>
+      <text>ens-poc · feature/login · step "cargo test"</text>
+      <image placement="hero" src="https://picsum.photos/id/1062/360/180"/>
+      <text placement="attribution">CI/CD Pipeline</text>
+    </binding>
+  </visual>
+  <actions>
+    <action content="Retry" activationType="protocol" arguments="https://ci.example.com/build/129/retry" hint-buttonStyle="Success"/>
+    <action content="Rollback" activationType="protocol" arguments="https://ci.example.com/rollback" hint-buttonStyle="Critical"/>
+    <action content="View logs" activationType="protocol" arguments="https://ci.example.com/build/129/logs"/>
+  </actions>
+</toast>

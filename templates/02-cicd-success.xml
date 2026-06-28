@@ -1,0 +1,16 @@
+<!-- CI/CD success: app logo, build summary, and protocol-link buttons that
+     open the build/logs in a browser (work without a COM activator). -->
+<toast launch="https://ci.example.com/build/128" activationType="protocol">
+  <visual>
+    <binding template="ToastGeneric">
+      <image placement="appLogoOverride" src="https://picsum.photos/id/2/96/96"/>
+      <text>Build #128 succeeded ✅</text>
+      <text>ens-poc · main · passed in 2m 14s</text>
+      <text placement="attribution">CI/CD Pipeline</text>
+    </binding>
+  </visual>
+  <actions>
+    <action content="View build" activationType="protocol" arguments="https://ci.example.com/build/128"/>
+    <action content="View logs" activationType="protocol" arguments="https://ci.example.com/build/128/logs"/>
+  </actions>
+</toast>

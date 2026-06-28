@@ -1,0 +1,21 @@
+<!-- Calendar reminder: reminder scenario, a snooze-interval selection
+     dropdown, and system Snooze/Dismiss actions (handled by Windows natively,
+     no activator needed). -->
+<toast scenario="reminder">
+  <visual>
+    <binding template="ToastGeneric">
+      <text>Standup in 15 minutes</text>
+      <text>Daily engineering sync · Room 4B</text>
+      <text placement="attribution">Calendar</text>
+    </binding>
+  </visual>
+  <actions>
+    <input id="snoozeTime" type="selection" defaultInput="15">
+      <selection id="5" content="5 minutes"/>
+      <selection id="15" content="15 minutes"/>
+      <selection id="60" content="1 hour"/>
+    </input>
+    <action content="Snooze" activationType="system" arguments="snooze" hint-inputId="snoozeTime"/>
+    <action content="Dismiss" activationType="system" arguments="dismiss"/>
+  </actions>
+</toast>

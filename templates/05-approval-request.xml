@@ -1,0 +1,18 @@
+<!-- Request for approval: reminder scenario (stays until acted on), a comment
+     text input, and Approve/Reject (colored) + Defer buttons. -->
+<toast scenario="reminder" useButtonStyle="true">
+  <visual>
+    <binding template="ToastGeneric">
+      <image placement="appLogoOverride" hint-crop="circle" src="https://picsum.photos/id/177/96/96"/>
+      <text>Approval needed: Deploy to production</text>
+      <text>Release v2.3.0 · requested by Maria · 12 files changed</text>
+      <text placement="attribution">Release Manager</text>
+    </binding>
+  </visual>
+  <actions>
+    <input id="comment" type="text" placeHolderContent="Add a comment (optional)…"/>
+    <action content="Approve" activationType="background" arguments="action=approve" hint-buttonStyle="Success" hint-inputId="comment"/>
+    <action content="Reject" activationType="background" arguments="action=reject" hint-buttonStyle="Critical" hint-inputId="comment"/>
+    <action content="Defer" activationType="background" arguments="action=defer"/>
+  </actions>
+</toast>

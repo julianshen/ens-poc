@@ -1,0 +1,17 @@
+<!-- News update: hero image, circular source logo, headline + summary,
+     attribution, and a "Read more" protocol link + background "Save". -->
+<toast launch="https://news.example.com/article/quantum" activationType="protocol">
+  <visual>
+    <binding template="ToastGeneric">
+      <text>Breaking: New chip doubles inference throughput</text>
+      <text>Researchers demonstrate a 2x latency improvement on commodity hardware.</text>
+      <image placement="hero" src="https://picsum.photos/id/1015/360/180"/>
+      <image placement="appLogoOverride" hint-crop="circle" src="https://picsum.photos/id/1011/96/96"/>
+      <text placement="attribution">Tech Daily</text>
+    </binding>
+  </visual>
+  <actions>
+    <action content="Read more" activationType="protocol" arguments="https://news.example.com/article/quantum"/>
+    <action content="Save" activationType="background" arguments="action=save"/>
+  </actions>
+</toast>

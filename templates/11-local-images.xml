@@ -1,0 +1,13 @@
+<!-- Local file images: the sender substitutes __ASSETS__ with a file:/// URI to
+     tools/demo-assets, showing that on-disk images render too. -->
+<toast>
+  <visual>
+    <binding template="ToastGeneric">
+      <image placement="appLogoOverride" hint-crop="circle" src="__ASSETS__/avatar.png"/>
+      <text>Local assets</text>
+      <text>Images loaded from a file:// path on disk.</text>
+      <image placement="hero" src="__ASSETS__/hero.png"/>
+      <text placement="attribution">local file images</text>
+    </binding>
+  </visual>
+</toast>
