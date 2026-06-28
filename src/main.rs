@@ -24,7 +24,7 @@ fn main() -> anyhow::Result<()> {
                 .map(PathBuf::from)
                 .unwrap_or_else(|| PathBuf::from(tns::app::DEFAULT_CONFIG_PATH));
 
-            let runtime = tokio::runtime::Runtime::new()?;
+            let runtime = tns::app::runtime()?;
             runtime.block_on(tns::app::run_agent(&config_path, async {
                 let _ = tokio::signal::ctrl_c().await;
                 tracing::info!("ctrl-c received");

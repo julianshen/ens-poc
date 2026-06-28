@@ -69,7 +69,7 @@ fn run_service() -> anyhow::Result<()> {
     let status_handle = service_control_handler::register(AGENT_SERVICE.name, event_handler)?;
     status_handle.set_service_status(status(ServiceState::Running, ServiceControlAccept::STOP))?;
 
-    let runtime = tokio::runtime::Runtime::new()?;
+    let runtime = app::runtime()?;
     let result = runtime.block_on(app::run_agent(
         Path::new(app::DEFAULT_CONFIG_PATH),
         async move {
