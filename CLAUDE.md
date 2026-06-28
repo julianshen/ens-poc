@@ -133,20 +133,47 @@ platform-independent logic from the Windows API calls.**
 This split is what makes the >90% coverage target achievable: the testable core
 is platform-independent, and the thin Windows shell is mocked.
 
-## Key crates (from the spec — declare these in Cargo.toml as needed)
+## Dependencies & build profile
+
+`Cargo.toml` (`edition = "2024"`) — the actual dependency set:
 
 ```toml
-async-nats          = "0.35"
-tokio               = { version = "1", features = ["full"] }
-windows             = { version = "0.58", features = ["UI_Notifications", "Data_Xml_Dom"] }
-windows-service     = "0.7"
-quick-xml           = "0.36"
-tracing             = "0.1"
-tracing-subscriber  = "0.3"
-anyhow              = "1"
+[dependencies]
+quick-xml = "0.36"                                  # XML parse
+serde + toml                                        # agent.toml
+async-nats = "0.35"                                 # NATS client
+tokio = { features = ["rt-multi-thread","macros","net","time","signal","sync"] }
+futures = "0.3"                                      # StreamExt
+tracing + tracing-subscriber + anyhow
+
+[dev-dependencies]
+bytes = "1"                                          # build NATS payloads in examples/tests
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.58", features = [
+  "UI_Notifications","Data_Xml_Dom",
+  "Win32_Foundation","Win32_Security","Win32_System_EventLog" ] }   # toasts + Event Log
+windows-service = "0.7"
+winreg = "0.52"                                      # MachineGuid / AUMID registry
 ```
 
-Note `Cargo.toml` uses `edition = "2024"`.
+- **`tokio` is trimmed** (not `"full"`) and the agent uses a 2-worker runtime
+  (`app::runtime()`) — keep both lean unless a new feature needs more.
+- **`[profile.release]`** is size-tuned: `opt-level="z"`, `lto`, `codegen-units=1`,
+  `panic="abort"` (the SCM restarts the service on crash; see service exit-code
+  handling), `strip`. Release binary ≈ 1.8 MB. Don't revert these casually.
+- **`async-nats` 0.35 hard-requires a rustls crypto provider (`ring`)** even for
+  plaintext, so its TLS stack can't be removed without patching the crate.
+
+### Build gotchas
+
+- A full parallel rebuild of all deps (the `windows` crate, rustls, ring) can
+  exhaust the paging file (`os error 1455`). If a build dies with
+  `handle_alloc_error` / LNK1201, retry with **`cargo build -j 4`**.
+- The running agent/binary holds `target/.../tns.exe` locked — **stop it before
+  rebuilding** (`Get-Process -Name tns | Stop-Process -Force`).
+- `Get-Content -Raw` (PowerShell 5.1) reads as ANSI and mangles the UTF-8 emoji
+  in templates; validate XML with `[System.Xml.XmlDocument]::Load($path)` instead.
 
 ## Commands
 
@@ -194,6 +221,20 @@ New-Item -Path $k -Force | Out-Null
 New-ItemProperty -Path $k -Name DisplayName -Value "TNS Notifications" -Force | Out-Null
 cargo run --example notify_demo -- TNS.SmokeDemo
 ```
+
+### End-to-end over NATS
+
+[tests/nats_integration.rs](tests/nats_integration.rs) (`#[ignore]`d) publishes
+to a real broker and asserts each message reaches `dispatch` via a mock sink —
+including a rich-toast-survives-the-round-trip case and a mixed valid/invalid
+stream. Run a broker first (`nats-server.exe --user agent --pass changeme
+--port 4222`), then `cargo test --test nats_integration -- --ignored`.
+
+For a live agent + publish loop, run the agent against that broker
+(`cargo run -- <config>`, `aumid` = an AUMID with a shortcut) and publish with
+the examples: `nats_publish` (toast/badge/rich/demo), `nats_gallery`
+(images/links), or `send_templates` (the whole `templates/` library). All read
+this machine's device-id from the registry so they target the local agent.
 
 ### Coverage (target: >90%)
 
