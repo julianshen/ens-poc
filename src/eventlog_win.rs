@@ -93,13 +93,89 @@ impl Visit for MessageVisitor<'_> {
     }
 }
 
-/// Initialise logging: stderr (for console use) plus the Windows event log when
-/// the source can be registered. Safe to call once at startup.
-pub fn init_logging() {
+/// Guards for observability exporters that must outlive the program: the Sentry
+/// client (flushes on drop) and the OpenTelemetry tracer provider (flushed via
+/// its `Drop` here). Hold the returned value in `main` / the service until exit.
+#[must_use = "drop the guards at program end so Sentry/OTel flush their queues"]
+pub struct LoggingGuards {
+    _sentry: Option<sentry::ClientInitGuard>,
+    otel: Option<opentelemetry_sdk::trace::SdkTracerProvider>,
+}
+
+impl Drop for LoggingGuards {
+    fn drop(&mut self) {
+        if let Some(provider) = &self.otel {
+            let _ = provider.shutdown();
+        }
+    }
+}
+
+/// Build an OTLP/HTTP tracer provider for `endpoint` (e.g. `http://host:4318`).
+/// Uses a blocking HTTP client so the batch exporter runs on its own thread and
+/// needs no Tokio runtime.
+fn build_otel_provider(
+    endpoint: &str,
+) -> Result<opentelemetry_sdk::trace::SdkTracerProvider, opentelemetry_otlp::ExporterBuildError> {
+    use opentelemetry_otlp::WithExportConfig;
+
+    let exporter = opentelemetry_otlp::SpanExporter::builder()
+        .with_http()
+        .with_endpoint(endpoint)
+        .with_protocol(opentelemetry_otlp::Protocol::HttpBinary)
+        .build()?;
+
+    Ok(opentelemetry_sdk::trace::SdkTracerProvider::builder()
+        .with_batch_exporter(exporter)
+        .with_resource(
+            opentelemetry_sdk::Resource::builder()
+                .with_service_name("tns-agent")
+                .build(),
+        )
+        .build())
+}
+
+/// Initialise logging and observability from `config`: stderr (console) + the
+/// Windows event log, plus Sentry error reporting and OpenTelemetry tracing
+/// when `config.sentry_dsn` / `config.otel_endpoint` are set (each is a no-op
+/// otherwise). Call once at startup and keep the returned [`LoggingGuards`].
+pub fn init_logging(config: &crate::config::Config) -> LoggingGuards {
+    use opentelemetry::trace::TracerProvider as _;
+    use tracing_subscriber::Layer;
+
+    // Sentry: holding the guard keeps the client alive (and flushes on drop).
+    let sentry_guard = config.sentry_dsn.as_ref().map(|dsn| {
+        sentry::init((
+            dsn.as_str(),
+            sentry::ClientOptions {
+                release: sentry::release_name!(),
+                ..Default::default()
+            },
+        ))
+    });
+    let sentry_layer = sentry_guard.as_ref().map(|_| sentry_tracing::layer());
+
+    // OpenTelemetry: an OTLP/HTTP span exporter, if an endpoint is configured.
+    let otel_provider = config.otel_endpoint.as_ref().and_then(|endpoint| {
+        build_otel_provider(endpoint)
+            .map_err(|e| eprintln!("OpenTelemetry init failed: {e}"))
+            .ok()
+    });
+    let otel_layer = otel_provider
+        .as_ref()
+        .map(|p| tracing_opentelemetry::layer().with_tracer(p.tracer("tns")));
+
     let eventlog = EventLogLayer::new().ok();
+
     tracing_subscriber::registry()
         .with(tracing_subscriber::filter::LevelFilter::INFO)
         .with(tracing_subscriber::fmt::layer())
         .with(eventlog)
+        .with(sentry_layer.map(|l| l.boxed()))
+        .with(otel_layer.map(|l| l.boxed()))
         .init();
+
+    LoggingGuards {
+        _sentry: sentry_guard,
+        otel: otel_provider,
+    }
 }

@@ -7,7 +7,6 @@
 #![cfg(windows)]
 
 use std::future::Future;
-use std::path::Path;
 
 use anyhow::anyhow;
 
@@ -30,14 +29,10 @@ pub fn runtime() -> std::io::Result<tokio::runtime::Runtime> {
         .build()
 }
 
-/// Load configuration, resolve the device ID, and run the agent until the NATS
-/// loop ends (only on bounded-initial-connect give-up) or `shutdown` resolves.
-pub async fn run_agent(
-    config_path: &Path,
-    shutdown: impl Future<Output = ()>,
-) -> anyhow::Result<()> {
-    let config = Config::from_path(config_path).map_err(|e| anyhow!("{e}"))?;
-
+/// Resolve the device ID and run the agent until the NATS loop ends (only on
+/// bounded-initial-connect give-up) or `shutdown` resolves. The caller loads
+/// `config` first so it can initialise observability from the same values.
+pub async fn run_agent(config: Config, shutdown: impl Future<Output = ()>) -> anyhow::Result<()> {
     let device_id = RegistryDeviceIdSource
         .device_id()
         .map_err(|e| anyhow!("{e}"))?;

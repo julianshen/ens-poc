@@ -39,6 +39,20 @@ tracing = "0.1"
 tracing-subscriber = "0.3"
 anyhow = "1"
 
+# Observability (optional at runtime — layers are no-ops unless agent.toml
+# configures sentry_dsn / otel_endpoint). Note: pulls in reqwest + prost, a
+# notable binary-size increase.
+sentry = "0.48"
+sentry-tracing = "0.48"
+opentelemetry = "0.32"
+opentelemetry_sdk = "0.32"
+opentelemetry-otlp = { version = "0.32", default-features = false, features = [
+    "trace",
+    "http-proto",
+    "reqwest-blocking-client",
+] }
+tracing-opentelemetry = "0.33"
+
 [dev-dependencies]
 bytes = "1"
 

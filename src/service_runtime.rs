@@ -21,6 +21,7 @@ use windows_service::service_control_handler::{self, ServiceControlHandlerResult
 use windows_service::{define_windows_service, service_dispatcher};
 
 use crate::app;
+use crate::config::Config;
 use crate::service::AGENT_SERVICE;
 
 const SERVICE_TYPE: ServiceType = ServiceType::OWN_PROCESS;
@@ -33,8 +34,16 @@ pub fn run() -> windows_service::Result<()> {
 }
 
 fn service_main(_arguments: Vec<OsString>) {
-    crate::eventlog_win::init_logging();
-    if let Err(err) = run_service() {
+    // Config drives both the agent and observability, so it must load before
+    // logging is initialised. If it fails we have no subscriber to log to; the
+    // SCM treats the non-start as a failure (recovery applies).
+    let config = match Config::from_path(Path::new(app::DEFAULT_CONFIG_PATH)) {
+        Ok(config) => config,
+        Err(_) => return,
+    };
+    let _guards = crate::eventlog_win::init_logging(&config);
+
+    if let Err(err) = run_service(config) {
         tracing::error!(error = %err, "service exited with error");
     }
 }
@@ -51,7 +60,7 @@ fn status(state: ServiceState, accepts: ServiceControlAccept, exit_code: u32) ->
     }
 }
 
-fn run_service() -> anyhow::Result<()> {
+fn run_service(config: Config) -> anyhow::Result<()> {
     let shutdown = Arc::new(Notify::new());
 
     let handler_shutdown = shutdown.clone();
@@ -74,12 +83,9 @@ fn run_service() -> anyhow::Result<()> {
     ))?;
 
     let runtime = app::runtime()?;
-    let result = runtime.block_on(app::run_agent(
-        Path::new(app::DEFAULT_CONFIG_PATH),
-        async move {
-            shutdown.notified().await;
-        },
-    ));
+    let result = runtime.block_on(app::run_agent(config, async move {
+        shutdown.notified().await;
+    }));
 
     // Report a non-zero exit code on failure so the SCM's restart-on-failure
     // recovery fires (install.ps1 sets the failure flag that enables recovery

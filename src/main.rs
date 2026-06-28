@@ -18,14 +18,17 @@ fn main() -> anyhow::Result<()> {
             tns::service_runtime::run().map_err(|e| anyhow::anyhow!("service dispatcher: {e}"))
         }
         arg => {
-            tns::eventlog_win::init_logging();
-
             let config_path = arg
                 .map(PathBuf::from)
                 .unwrap_or_else(|| PathBuf::from(tns::app::DEFAULT_CONFIG_PATH));
+            let config =
+                tns::config::Config::from_path(&config_path).map_err(|e| anyhow::anyhow!("{e}"))?;
+
+            // Held until the function returns so Sentry/OTel flush on exit.
+            let _guards = tns::eventlog_win::init_logging(&config);
 
             let runtime = tns::app::runtime()?;
-            runtime.block_on(tns::app::run_agent(&config_path, async {
+            runtime.block_on(tns::app::run_agent(config, async {
                 let _ = tokio::signal::ctrl_c().await;
                 tracing::info!("ctrl-c received");
             }))

@@ -19,6 +19,13 @@ pub struct Config {
     pub nats_pass: String,
     /// Application User Model ID used for notification registration.
     pub aumid: String,
+    /// Optional Sentry DSN. When set, errors/events are reported to Sentry.
+    #[serde(default)]
+    pub sentry_dsn: Option<String>,
+    /// Optional OTLP/HTTP endpoint (e.g. `http://collector:4318`). When set,
+    /// traces are exported to an OpenTelemetry collector.
+    #[serde(default)]
+    pub otel_endpoint: Option<String>,
 }
 
 /// Why a config could not be loaded.
@@ -75,8 +82,24 @@ mod tests {
                 nats_user: "agent".into(),
                 nats_pass: "changeme".into(),
                 aumid: "YourCo.NotificationAgent".into(),
+                // Optional observability fields default to None when absent.
+                sentry_dsn: None,
+                otel_endpoint: None,
             }
         );
+    }
+
+    #[test]
+    fn parses_optional_observability_fields() {
+        let toml = format!(
+            "{VALID}\n            sentry_dsn = \"https://k@sentry.example/1\"\n            otel_endpoint = \"http://collector:4318\"\n"
+        );
+        let cfg = Config::from_toml(&toml).unwrap();
+        assert_eq!(
+            cfg.sentry_dsn.as_deref(),
+            Some("https://k@sentry.example/1")
+        );
+        assert_eq!(cfg.otel_endpoint.as_deref(), Some("http://collector:4318"));
     }
 
     #[test]

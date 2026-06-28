@@ -6,3 +6,7 @@ nats_url  = "nats://nats.internal.yourco.com:4222"
 nats_user = "agent"
 nats_pass = "changeme"
 aumid     = "YourCo.NotificationAgent"
+
+# Optional observability (omit to disable; each is a no-op when unset).
+# sentry_dsn    = "https://<key>@<org>.ingest.sentry.io/<project>"   # error/event reporting
+# otel_endpoint = "http://collector.internal:4318"                  # OTLP/HTTP trace export

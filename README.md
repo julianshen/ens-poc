@@ -176,9 +176,24 @@ request, incoming call, reminder, progress, system alert, rich media, local
 images, badges) and nearly the full toast vocabulary. They're plain data files —
 publishable with `send_templates`, the `nats` CLI, or `publish.py`.
 
+## Observability (optional)
+
+Set either field in `agent.toml` to light up the corresponding layer on the
+agent's `tracing` pipeline (omit to disable — each is a no-op when unset):
+
+```toml
+sentry_dsn    = "https://<key>@<org>.ingest.sentry.io/<project>"   # error/event reporting
+otel_endpoint = "http://collector.internal:4318"                  # OTLP/HTTP trace export
+```
+
+Sentry captures errors/events (and panics); OpenTelemetry exports spans over
+OTLP/HTTP (protobuf) to a collector. Both flush on shutdown.
+
 ## Footprint
 
-- **Binary:** ~1.8 MB release (`opt-level="z"`, LTO, `strip`, `panic="abort"`).
+- **Binary:** ~3.8 MB release (~1.8 MB without the observability stack —
+  sentry/otel/reqwest/prost add ~2 MB). `opt-level="z"`, LTO, `strip`,
+  `panic="abort"`.
 - **Memory:** ~2–3 MB private working set; ~7 threads idle (a 2-worker Tokio
   runtime). Larger working-set figures after the first toast are the shared
   WinRT/COM notification subsystem mapping in, not the agent's own memory.

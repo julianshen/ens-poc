@@ -36,7 +36,7 @@ is excluded from coverage (see below) and verified manually per spec §10.
 | [nats.rs](src/nats.rs) | **net glue** | Connect/subscribe/reconnect loop, driving `backoff` + `dispatch` |
 | [app.rs](src/app.rs) | **OS glue** `#[cfg(windows)]` | Bootstrap: config → device ID → sink → run loop, with cancellation |
 | [service_runtime.rs](src/service_runtime.rs) | **OS glue** `#[cfg(windows)]` | `windows-service` SCM wrapper (Running/Stop, runs `app`) |
-| [eventlog_win.rs](src/eventlog_win.rs) | **OS glue** `#[cfg(windows)]` | `tracing` layer → `ReportEventW`; `init_logging()` (stderr + Event Log) |
+| [eventlog_win.rs](src/eventlog_win.rs) | **OS glue** `#[cfg(windows)]` | `init_logging(&config)` composes the tracing layers: stderr + Event Log (`ReportEventW`) + optional Sentry + optional OTLP/HTTP tracing; returns `LoggingGuards` |
 
 `main.rs` dispatches: `tns --service` → SCM runtime; `tns [config]` → console.
 
@@ -44,6 +44,22 @@ The seam: pure modules define traits (`NotificationSink`, `DeviceIdSource`,
 `AumidRegistrar`); `platform.rs` implements them with real Windows calls and
 tests use mocks. `platform.rs`/`nats.rs` carry **no formatting or validation
 logic of their own** — they only make the COM/registry/network calls.
+
+### Observability
+
+Optional **Sentry** (error reporting) and **OpenTelemetry** (OTLP/HTTP traces)
+ride on the existing `tracing` pipeline. Enabled by `agent.toml`'s optional
+`sentry_dsn` / `otel_endpoint` (both `Option<String>`, `#[serde(default)]`); each
+layer is a no-op when unset. `eventlog_win::init_logging(&config)` builds all
+layers and returns `LoggingGuards` (the Sentry client guard + the OTel
+`SdkTracerProvider`, flushed on `Drop`) — **hold it until program exit** in
+`main` / the service.
+
+This is why `config` is now loaded by the **callers** (`main.rs`,
+`service_runtime.rs`) before `run_agent` — `init_logging` needs the DSN/endpoint.
+The OTLP exporter uses a **blocking** HTTP client so its batch processor runs on
+its own thread and needs no Tokio runtime (init happens before the runtime is
+built). `run_agent` now takes a `Config` by value rather than a path.
 
 ### Service install (built)
 
@@ -145,6 +161,9 @@ async-nats = "0.35"                                 # NATS client
 tokio = { features = ["rt-multi-thread","macros","net","time","signal","sync"] }
 futures = "0.3"                                      # StreamExt
 tracing + tracing-subscriber + anyhow
+sentry + sentry-tracing                              # optional error reporting
+opentelemetry + opentelemetry_sdk + tracing-opentelemetry
+opentelemetry-otlp (http-proto, reqwest-blocking-client)  # optional OTLP/HTTP traces
 
 [dev-dependencies]
 bytes = "1"                                          # build NATS payloads in examples/tests
@@ -161,15 +180,18 @@ winreg = "0.52"                                      # MachineGuid / AUMID regis
   (`app::runtime()`) — keep both lean unless a new feature needs more.
 - **`[profile.release]`** is size-tuned: `opt-level="z"`, `lto`, `codegen-units=1`,
   `panic="abort"` (the SCM restarts the service on crash; see service exit-code
-  handling), `strip`. Release binary ≈ 1.8 MB. Don't revert these casually.
+  handling), `strip`. Release binary ≈ 3.8 MB (≈1.8 MB before the observability
+  stack — sentry/otel/reqwest/prost add ~2 MB). Don't revert these casually.
 - **`async-nats` 0.35 hard-requires a rustls crypto provider (`ring`)** even for
   plaintext, so its TLS stack can't be removed without patching the crate.
 
 ### Build gotchas
 
-- A full parallel rebuild of all deps (the `windows` crate, rustls, ring) can
-  exhaust the paging file (`os error 1455`). If a build dies with
-  `handle_alloc_error` / LNK1201, retry with **`cargo build -j 4`**.
+- A full parallel rebuild of all deps (the `windows` crate, rustls, ring,
+  sentry, opentelemetry, reqwest, prost) can exhaust the paging file
+  (`os error 1455`, `handle_alloc_error`, LNK1201, or rustc "never executed").
+  Retry with **`cargo build -j 4`** (debug) / **`cargo build --release -j 2`**
+  (the LTO release build of the larger graph needs less parallelism).
 - The running agent/binary holds `target/.../tns.exe` locked — **stop it before
   rebuilding** (`Get-Process -Name tns | Stop-Process -Force`).
 - `Get-Content -Raw` (PowerShell 5.1) reads as ANSI and mangles the UTF-8 emoji
